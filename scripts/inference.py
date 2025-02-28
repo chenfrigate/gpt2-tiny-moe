@@ -1,19 +1,18 @@
 import torch
 from models.gpt2_moe import MoETransformer
-from transformers import GPT2Tokenizer
+from transformers import GPT2Tokenizer, GPT2Model
 
-vocab_size = 50257
-hidden_dim = 128
-num_layers = 4
-num_experts = 4
-top_k = 2
+# 加载 GPT-2 Tiny 预训练参数
+print("✅ 加载 GPT-2 Tiny 预训练参数...")
+gpt2_tiny = GPT2Model.from_pretrained("gpt2")
+moe_model = MoETransformer(gpt2_tiny)
 
-model = MoETransformer(vocab_size, hidden_dim, num_layers, num_experts, top_k)
+# 加载 Tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
 def generate_text(prompt):
     input_ids = tokenizer.encode(prompt, return_tensors="pt")
-    logits = model(input_ids)
+    logits = moe_model(input_ids)
     output_ids = torch.argmax(logits, dim=-1)
     return tokenizer.decode(output_ids[0])
 

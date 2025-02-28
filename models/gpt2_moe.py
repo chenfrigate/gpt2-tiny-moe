@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers import GPT2Tokenizer
+from transformers import GPT2Model
 
 class GatingNetwork(nn.Module):
-    """ 门控网络：根据输入选择合适的专家 """
     def __init__(self, input_dim, num_experts, top_k=2):
         super().__init__()
         self.num_experts = num_experts
@@ -18,7 +17,6 @@ class GatingNetwork(nn.Module):
         return topk_weights, topk_indices
 
 class MoELayer(nn.Module):
-    """ MoE 层 """
     def __init__(self, input_dim, num_experts=4, top_k=2):
         super().__init__()
         self.num_experts = num_experts
@@ -40,7 +38,6 @@ class MoELayer(nn.Module):
         return output
 
 class MoETransformerBlock(nn.Module):
-    """ GPT-2 Transformer 层，FFN 替换为 MoE """
     def __init__(self, hidden_dim, num_experts=4, top_k=2):
         super().__init__()
         self.attention = nn.MultiheadAttention(hidden_dim, num_heads=8)
@@ -55,12 +52,20 @@ class MoETransformerBlock(nn.Module):
         return x
 
 class MoETransformer(nn.Module):
-    """ GPT-2 Tiny + MoE """
-    def __init__(self, vocab_size, hidden_dim, num_layers=4, num_experts=4, top_k=2):
+    def __init__(self, gpt2_model, num_experts=4, top_k=2):
         super().__init__()
-        self.embedding = nn.Embedding(vocab_size, hidden_dim)
-        self.layers = nn.ModuleList([MoETransformerBlock(hidden_dim, num_experts, top_k) for _ in range(num_layers)])
-        self.lm_head = nn.Linear(hidden_dim, vocab_size)
+        self.embedding = gpt2_model.wte
+        self.num_layers = len(gpt2_model.h)
+        self.layers = nn.ModuleList([
+            MoETransformerBlock(gpt2_model.config.hidden_size, num_experts, top_k)
+            for _ in range(self.num_layers)
+        ])
+        self.lm_head = gpt2_model.lm_head
+
+        for i, layer in enumerate(self.layers):
+            layer.attention.load_state_dict(gpt2_model.h[i].attn.state_dict())
+            layer.norm1.load_state_dict(gpt2_model.h[i].ln_1.state_dict())
+            layer.norm2.load_state_dict(gpt2_model.h[i].ln_2.state_dict())
 
     def forward(self, input_ids):
         x = self.embedding(input_ids)
