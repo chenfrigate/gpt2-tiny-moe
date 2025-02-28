@@ -8,6 +8,13 @@ print("✅ 加载 GPT-2 Tiny 预训练参数...")
 gpt2_tiny = GPT2Model.from_pretrained("gpt2")
 moe_model = MoETransformer(gpt2_tiny)
 
+# 打印哪些参数是需要训练的
+trainable_params = sum(p.numel() for p in moe_model.parameters() if p.requires_grad)
+total_params = sum(p.numel() for p in moe_model.parameters())
+
+print(f"🔹 训练参数数量: {trainable_params} / {total_params} (仅 MoE 层参与训练)")
+
+
 # 加载 Tokenizer
 tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
 
